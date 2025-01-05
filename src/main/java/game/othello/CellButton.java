@@ -1,7 +1,7 @@
 package game.othello;
 
 import javafx.scene.control.Button;
-import javafx.scene.layout.GridPane;
+
 
 public class CellButton extends Button {
     private int row;

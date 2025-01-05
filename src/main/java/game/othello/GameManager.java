@@ -99,8 +99,8 @@ public class GameManager {
         if (!history.isEmpty()) {
             // Revert to the previous state
             GameState previousState = history.pop();
-            this.board = previousState.getBoard();
-            this.currentPlayer = previousState.getCurrentPlayer();
+            this.board = previousState.board();
+            this.currentPlayer = previousState.currentPlayer();
         }
     }
 
