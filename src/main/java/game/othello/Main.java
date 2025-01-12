@@ -1,5 +1,6 @@
 package game.othello;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -10,15 +11,16 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.scene.control.*;
+import javafx.util.Duration;
+import javafx.scene.control.ButtonType;
+
 
 public class Main extends Application {
     private static final int BOARD_SIZE = 8;
     private GameManager gameManager;
     private Label turnLabel; // Label to show the current player's turn
     private Stage primaryStage; // To switch scenes easily
-    private String playerColor = "black"; // Default color for the player
-
+    private CellButton.CellState playerColor = CellButton.CellState.BLACK; // Default color for the player
 
     @Override
     public void start(Stage primaryStage) {
@@ -48,8 +50,8 @@ public class Main extends Application {
         RadioButton whiteButton = new RadioButton("White");
         whiteButton.setToggleGroup(colorGroup);
 
-        blackButton.setOnAction(event -> playerColor = "black");
-        whiteButton.setOnAction(event -> playerColor = "white");
+        blackButton.setOnAction(event -> playerColor = CellButton.CellState.BLACK);
+        whiteButton.setOnAction(event -> playerColor = CellButton.CellState.WHITE);
 
         // Start Game Button
         Button startButton = new Button("Start Game");
@@ -74,18 +76,15 @@ public class Main extends Application {
     private void startGame() {
         // Initialize the GameManager and set AI color
         gameManager = new GameManager();
-        if ("white".equals(playerColor)) {
-            gameManager.setAIColor("black");
-        } else {
-            gameManager.setAIColor("white");
-        }
+        gameManager.setAiColor(playerColor == CellButton.CellState.WHITE ? CellButton.CellState.BLACK : CellButton.CellState.WHITE);
 
         // Show the game board
         showGameBoard();
     }
+
     private void showGameBoard() {
         GridPane board = createBoard();
-        turnLabel = new Label(playerColor.substring(0, 1).toUpperCase() + playerColor.substring(1) + "'s turn");
+        turnLabel = new Label(playerColor == CellButton.CellState.BLACK ? "Black's turn" : "White's turn");
         turnLabel.setStyle("-fx-font-size: 16px; -fx-padding: 10;");
 
         Button undoButton = new Button("Undo");
@@ -99,6 +98,7 @@ public class Main extends Application {
                 showGameOverDialog();
             }
         });
+
         VBox layout = new VBox(10);
         layout.getChildren().addAll(turnLabel, board, undoButton);
         layout.setStyle("-fx-padding: 20; -fx-alignment: center;");
@@ -107,36 +107,6 @@ public class Main extends Application {
         primaryStage.setScene(gameScene);
     }
 
-//         // Create the board and the label
-//        GridPane board = createBoard();
-//        turnLabel = new Label("Black's turn");
-//        turnLabel.setStyle("-fx-font-size: 16px; -fx-padding: 10;");
-//
-//        // Undo button
-//        Button undoButton = new Button("Undo");
-//        undoButton.setStyle("-fx-font-size: 14px; -fx-padding: 10;");
-//        undoButton.setOnAction(event -> {
-//            gameManager.undo();
-//            updateBoard(board);  // Update the board with the undone move
-//            updateTurnLabel();    // Update the turn label after the undo
-//
-//            if (gameManager.isGameOver()) {
-//                showGameOverDialog();
-//            }
-//        });
-//
-//        // Layout to add the label and the board together
-//        GridPane layout = new GridPane();
-//        layout.add(turnLabel, 0, 0, BOARD_SIZE, 1); // Label at the top
-//        layout.add(board, 0, 1); // Board below the label
-//        layout.add(undoButton, 0, BOARD_SIZE + 1); // Undo button below the board
-//
-//        // Set up the scene with the layout
-//        Scene scene = new Scene(layout, 600, 650);
-//        primaryStage.setScene(scene);
-//        primaryStage.show();
-//    }
-
     private GridPane createBoard() {
         GridPane board = new GridPane();
 
@@ -144,6 +114,10 @@ public class Main extends Application {
             for (int col = 0; col < BOARD_SIZE; col++) {
                 CellButton cell = new CellButton(row, col);
                 cell.setColor(gameManager.getCell(row, col));
+
+                // Highlight valid moves
+                //Reset style if not valid
+                cell.setHighlight(gameManager.isValidMove(row, col)); //Highlight color
 
                 cell.setOnAction(event -> {
                     if (gameManager.isValidMove(cell.getRow(), cell.getCol())) {
@@ -154,10 +128,18 @@ public class Main extends Application {
                         if (gameManager.isGameOver()) {
                             showGameOverDialog();
                         } else {
-                            // If the game is not over, let the AI play after the human
-                            gameManager.aiMove();
-                            updateBoard(board);
-                            updateTurnLabel();
+                            // Delay AI move to improve smoothness
+                            PauseTransition pause = new PauseTransition(Duration.millis(1000)); // 1-second delay
+                            pause.setOnFinished(aiEvent -> {
+                                gameManager.aiMove();
+                                updateBoard(board);
+                                updateTurnLabel();
+
+                                if (gameManager.isGameOver()) {
+                                    showGameOverDialog();
+                                }
+                            });
+                            pause.play(); //Start the delay
                         }
                     }
                 });
@@ -177,7 +159,14 @@ public class Main extends Application {
                 for (javafx.scene.Node node : board.getChildren()) {
                     if (GridPane.getRowIndex(node) == row && GridPane.getColumnIndex(node) == col) {
                         CellButton cell = (CellButton) node;
-                        cell.setColor(gameManager.getCell(row, col));  // Update the color
+                        // Get the current state of the cell from the game manager
+                        CellButton.CellState currentState = gameManager.getCell(row, col);
+                        // Only update if the state has changed
+                        if (!cell.getColor().equals(currentState)){
+                            cell.setColor(currentState);
+                        }
+                        // Optionally handle highlights (valid moves)
+                        cell.setHighlight(gameManager.isValidMove(row, col));
                         break;
                     }
                 }
@@ -187,10 +176,10 @@ public class Main extends Application {
 
     private void updateTurnLabel() {
         // Update the label to show the current player's turn
-        String currentPlayer = gameManager.getCurrentPlayer();
-        if ("black".equals(currentPlayer)) {
+        CellButton.CellState currentPlayer = gameManager.getCurrentPlayer();
+        if (currentPlayer == CellButton.CellState.BLACK) {
             turnLabel.setText("Black's turn");
-        } else {
+        } else if (currentPlayer == CellButton.CellState.WHITE) {
             turnLabel.setText("White's turn");
         }
     }
@@ -218,11 +207,6 @@ public class Main extends Application {
                 startGame();
             }
         });
-    }
-
-    private void switchScene(Scene scene) {
-        primaryStage.setScene(scene);
-        primaryStage.show();
     }
 
     private String capitalize(String text) {
